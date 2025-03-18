@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::{ PathBuf, Path };
 use std::process::Stdio;
 use std::io::Error;
-use std::fs;
+use std::fs::{self, metadata};
 
 fn get_system_config_dir_path() -> PathBuf {
     match env::var("XDG_CONFIG_HOME") {
@@ -15,6 +15,16 @@ fn get_system_config_dir_path() -> PathBuf {
     }
 }
 
+fn contains_init_file(dir_path: &PathBuf) -> bool {
+    let init_file: PathBuf = if dir_path.join("init.lua").exists() { 
+        dir_path.join("init.lua") 
+    } else if dir_path.join("init.vim").exists() { 
+        dir_path.join("init.vim") 
+    } else { return false };
+
+    !metadata(init_file).unwrap().is_dir()
+}
+
 fn main() -> Result<(), Error> {
     let system_config_dir_path_buf = get_system_config_dir_path();
     let system_config_dir: &Path = system_config_dir_path_buf.as_path();
@@ -24,20 +34,21 @@ fn main() -> Result<(), Error> {
 
     let mut configs_paths: Vec<PathBuf> = Vec::new();
     
+    if contains_init_file(&root_nvim_config_dir) { 
+        configs_paths.push(root_nvim_config_dir.clone().strip_prefix(system_config_dir).unwrap().to_path_buf()) 
+    }
+
     for content_or_err in root_nvim_dir_contents {
         let content = content_or_err.as_ref().unwrap();
         let name: String = String::from(content.file_name().to_str().unwrap());
         if name.starts_with(".") { continue };
-        if name == "init.vim" || name == "init.lua" { 
-            configs_paths.push(root_nvim_config_dir.clone().strip_prefix(system_config_dir).unwrap().to_path_buf()) 
-        }
 
         let path = content.path();
         let metadata = fs::metadata(&path).expect("Error while fetching metadata of {content}");
         
         if !metadata.is_dir() { continue }
-        if path.join("init.lua").exists() || path.join("init.vim").exists() {
-            configs_paths.push(path.strip_prefix(system_config_dir).unwrap().to_path_buf())
+        if contains_init_file(&path) {
+            configs_paths.push(path.strip_prefix(system_config_dir).unwrap().to_path_buf());
         }
     }
 
