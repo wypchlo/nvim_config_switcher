@@ -49,10 +49,10 @@ fn main() -> Result<(), Error> {
         .spawn()
         .unwrap();
     
-    let folder_names: Vec<&str> = configs_paths.iter().map(|path| path.file_name().unwrap().to_str().unwrap()).collect();
+    let dir_names: Vec<&str> = configs_paths.iter().map(|path| path.file_name().unwrap().to_str().unwrap()).collect();
 
     let stdin = fzf.stdin.as_mut().unwrap();
-    stdin.write_all(folder_names.join("\n").as_bytes())?;
+    stdin.write_all(dir_names.join("\n").as_bytes())?;
 
     fzf.wait_with_output()?;
 
