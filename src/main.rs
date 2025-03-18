@@ -1,5 +1,9 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
+use std::process::Stdio;
+use std::io::Error;
+use std::fs;
 
 fn get_config_dir_path() -> PathBuf {
     let xdg_config_home = match env::var("XDG_CONFIG_HOME") {
@@ -16,19 +20,41 @@ fn get_config_dir_path() -> PathBuf {
     [home.as_str(), ".config"].iter().collect()
 }
 
-fn main() {
-    use std::fs;
-    use std::fs::metadata;
-
+fn main() -> Result<(), Error> {
     let config_dir: PathBuf = get_config_dir_path();
-    let nvim_dir: PathBuf = config_dir.join("nvim");
+    let nvim_config_dir: PathBuf = config_dir.join("nvim");
     
-    let configs = fs::read_dir(nvim_dir.to_str().unwrap()).unwrap();
-    for config in configs {
-        let config_path_string = String::from(config.unwrap().path().to_str().unwrap());
-        let md = metadata(&config_path_string).unwrap();
-        if !md.is_dir() { continue }
+    let nvim_dir_contents = fs::read_dir(nvim_config_dir.as_path())?;
 
-        println!("{}", config_path_string);
+    let mut configs_paths: Vec<PathBuf> = Vec::new();
+    
+    for content_or_err in nvim_dir_contents {
+        let content = content_or_err.as_ref().unwrap();
+        let name: String = String::from(content.file_name().to_str().unwrap());
+        if name.starts_with(".") { continue };
+        if name == "init.vim" || name == "init.lua" { configs_paths.push(nvim_config_dir.clone()) }
+
+        let path = content.path();
+        let metadata = fs::metadata(&path).expect("Error while fetching metadata of {content}");
+        
+        if !metadata.is_dir() { continue }
+        if path.join("init.lua").exists() || path.join("init.vim").exists() {
+            configs_paths.push(path)
+        }
     }
+
+    let mut fzf = std::process::Command::new("fzf")
+        .stdin(Stdio::piped())
+        .arg("--border")
+        .spawn()
+        .unwrap();
+    
+    let folder_names: Vec<&str> = configs_paths.iter().map(|path| path.file_name().unwrap().to_str().unwrap()).collect();
+
+    let stdin = fzf.stdin.as_mut().unwrap();
+    stdin.write_all(folder_names.join("\n").as_bytes())?;
+
+    fzf.wait_with_output()?;
+
+    Ok(())
 }
