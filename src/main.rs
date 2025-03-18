@@ -43,6 +43,7 @@ fn main() -> Result<(), Error> {
 
     let mut fzf = std::process::Command::new("fzf")
         .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
         .arg("--border")
         .spawn()
         .unwrap();
@@ -51,8 +52,16 @@ fn main() -> Result<(), Error> {
 
     let stdin = fzf.stdin.as_mut().unwrap();
     stdin.write_all(dir_names.join("\n").as_bytes())?;
+    
+    let output = fzf.wait_with_output()?;
 
-    fzf.wait_with_output()?;
+    let selected_config_dir_raw = String::from_utf8_lossy(&output.stdout);
+    let selected_config_dir_trimmed = selected_config_dir_raw.trim();
+    
+    let _ = std::process::Command::new("nvim")
+        .env("NVIM_APPNAME", selected_config_dir_trimmed)
+        .spawn()?
+        .wait();
 
     Ok(())
 }
