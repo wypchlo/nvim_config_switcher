@@ -35,10 +35,6 @@ fn main() -> Result<(), Error> {
     let root_nvim_dir_contents = fs::read_dir(root_nvim_config_dir.as_path())?;
 
     let mut configs_paths: Vec<PathBuf> = Vec::new();
-    
-    if contains_init_file(&root_nvim_config_dir) { 
-        configs_paths.push(root_nvim_config_dir.clone().strip_prefix(system_config_dir).unwrap().to_path_buf()) 
-    }
 
     for content_or_err in root_nvim_dir_contents {
         let content = content_or_err.as_ref().unwrap();
@@ -54,25 +50,38 @@ fn main() -> Result<(), Error> {
         }
     }
 
-    let mut fzf = std::process::Command::new("fzf")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .arg("--border")
-        .spawn()
-        .unwrap();
-    
-    let dir_names: Vec<&str> = configs_paths.iter().map(|path| path.to_str().unwrap()).collect();
+    let selected_config_dir: String = (|| -> Option<String> {
+        if contains_init_file(&root_nvim_config_dir) { 
+            let stripped_nvim_dir_path = root_nvim_config_dir.clone().strip_prefix(system_config_dir).unwrap().to_path_buf();
+            configs_paths.push(stripped_nvim_dir_path);
+        }
 
-    let stdin = fzf.stdin.as_mut().unwrap();
-    stdin.write_all(dir_names.join("\n").as_bytes())?;
-    
-    let output = fzf.wait_with_output()?;
+        if configs_paths.len() == 1 {
+            return Some(String::from(configs_paths[0].to_str().unwrap()));
+        }
 
-    let selected_config_dir_raw = String::from_utf8_lossy(&output.stdout);
-    let selected_config_dir_trimmed = selected_config_dir_raw.trim();
-    
+        let mut fzf = std::process::Command::new("fzf")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .arg("--border")
+            .spawn()
+            .unwrap();
+        
+        let dir_names: Vec<&str> = configs_paths.iter().map(|path| path.to_str().unwrap()).collect();
+
+        let stdin = fzf.stdin.as_mut().unwrap();
+        stdin.write_all(dir_names.join("\n").as_bytes()).unwrap();
+        
+        let output = fzf.wait_with_output().unwrap();
+
+        let selected_config_dir_raw = String::from_utf8_lossy(&output.stdout);
+        if selected_config_dir_raw.is_empty() { return None }
+
+        Some(String::from(selected_config_dir_raw.trim()))
+    })().expect("No configuration selected");
+
     let _ = std::process::Command::new("nvim")
-        .env("NVIM_APPNAME", selected_config_dir_trimmed)
+        .env("NVIM_APPNAME", selected_config_dir)
         .args(args)
         .spawn()?
         .wait();
