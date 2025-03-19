@@ -26,6 +26,8 @@ fn contains_init_file(dir_path: &PathBuf) -> bool {
 }
 
 fn main() -> Result<(), Error> {
+    let args: Vec<String> = env::args().skip(1).collect();
+
     let system_config_dir_path_buf = get_system_config_dir_path();
     let system_config_dir: &Path = system_config_dir_path_buf.as_path();
     let root_nvim_config_dir: PathBuf = PathBuf::new().join(system_config_dir).join("nvim");
@@ -71,6 +73,7 @@ fn main() -> Result<(), Error> {
     
     let _ = std::process::Command::new("nvim")
         .env("NVIM_APPNAME", selected_config_dir_trimmed)
+        .args(args)
         .spawn()?
         .wait();
 
