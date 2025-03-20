@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
-use std::path::{ PathBuf, Path };
-use std::process::Stdio;
+use std::path::{PathBuf, Path};
+use std::process::{Stdio, Command};
 use std::io::Error;
 use std::fs::{self, metadata};
 
@@ -60,7 +60,7 @@ fn main() -> Result<(), Error> {
             return Some(String::from(configs_paths[0].to_str().unwrap()));
         }
 
-        let mut fzf = std::process::Command::new("fzf")
+        let mut fzf = Command::new("fzf")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .arg("--border")
@@ -78,9 +78,9 @@ fn main() -> Result<(), Error> {
         if selected_config_dir_raw.is_empty() { return None }
 
         Some(String::from(selected_config_dir_raw.trim()))
-    })().expect("No configuration selected");
-
-    let _ = std::process::Command::new("nvim")
+    })().unwrap_or_else(|| std::process::exit(1));
+    
+    let _ = Command::new("nvim")
         .env("NVIM_APPNAME", selected_config_dir)
         .args(args)
         .spawn()?
